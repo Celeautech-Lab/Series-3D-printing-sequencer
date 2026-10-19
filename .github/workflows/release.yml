@@ -1,109 +1,160 @@
-name: Build & Release Executables
+name: Build and release standalone binaries
 
 on:
-  release:
-    types: [published, created]
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
+  release:
+    types: [published, created]
   workflow_dispatch:
 
-concurrency:
-  group: release-${{ github.event.release.tag_name || github.ref_name }}
-  cancel-in-progress: true
-
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: build-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build ${{ matrix.os }} binary
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            asset_name: PrintSeriesGenerator-Linux
           - os: windows-latest
-            asset_name: PrintSeriesGenerator-Windows.exe
+            asset: PrintSeriesGenerator-Windows.exe
+            macos: false
+          - os: ubuntu-latest
+            asset: PrintSeriesGenerator-Linux
+            macos: false
           - os: macos-latest
-            asset_name: PrintSeriesGenerator-macOS-AppleSilicon.tar.gz
+            asset: PrintSeriesGenerator-macOS-AppleSilicon
+            macos: true
 
     steps:
-      - name: Checkout repository
+      - name: Check out source
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
-      - name: Install Linux system dependencies (Tkinter)
+      - name: Install system dependencies (Linux Tkinter)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-tk
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip pyinstaller
 
-      - name: Build Executable with PyInstaller
-        run: python build_exe.py
-
-      - name: Prepare Asset for Upload (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          chmod +x dist/PrintSeriesGenerator
-          mv dist/PrintSeriesGenerator dist/${{ matrix.asset_name }}
-
-      - name: Prepare Asset for Upload (Windows)
-        if: runner.os == 'Windows'
+      # Locate the application in either layout:
+      #   main.py/settings.json
+      #   src/main.py/src/settings.json
+      # The same directory is added to PyInstaller's import path, so both
+      # package layouts (including the relative-import fallback) work.
+      - name: Build executable or macOS app
         shell: bash
+        env:
+          ASSET_NAME: ${{ matrix.asset }}
+          IS_MACOS: ${{ matrix.macos }}
         run: |
-          mv dist/PrintSeriesGenerator.exe dist/${{ matrix.asset_name }}
+          python - <<'PY'
+          import os
+          import shutil
+          import subprocess
+          import sys
+          from pathlib import Path
 
-      - name: Prepare Asset for Upload (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          cd dist
-          if [ -d "PrintSeriesGenerator.app" ]; then
-            tar -czf ${{ matrix.asset_name }} PrintSeriesGenerator.app
-          else
-            chmod +x PrintSeriesGenerator
-            tar -czf ${{ matrix.asset_name }} PrintSeriesGenerator
-          fi
+          root = Path.cwd()
+          layouts = (
+              (root / 'src' / 'main.py', root / 'src' / 'settings.json'),
+              (root / 'main.py', root / 'settings.json'),
+          )
+          for entry, settings in layouts:
+              if entry.is_file() and settings.is_file():
+                  break
+          else:
+              raise SystemExit(
+                  'Expected main.py and settings.json at the repository root '
+                  'or together under src/'
+              )
 
-      - name: Upload Artifact
+          shutil.rmtree(root / 'build', ignore_errors=True)
+          shutil.rmtree(root / 'dist', ignore_errors=True)
+
+          asset = os.environ['ASSET_NAME']
+          is_macos = os.environ['IS_MACOS'].lower() == 'true'
+          app_name = 'PrintSeriesGenerator' if is_macos else Path(asset).stem
+          command = [
+              sys.executable, '-m', 'PyInstaller',
+              '--noconfirm', '--clean', '--windowed',
+              '--name', app_name,
+              '--paths', str(entry.parent),
+              '--add-data', f'{settings}{os.pathsep}.',
+          ]
+          command.append('--onedir' if is_macos else '--onefile')
+          command.append(str(entry))
+          subprocess.run(command, cwd=root, check=True)
+
+          if is_macos:
+              app = root / 'dist' / 'PrintSeriesGenerator.app'
+              if not app.is_dir():
+                  raise SystemExit(f'Missing expected macOS app: {app}')
+              archive = root / 'dist' / f'{asset}.tar.gz'
+              subprocess.run(
+                  ['tar', '-czf', str(archive), '-C', str(root / 'dist'), app.name],
+                  check=True,
+              )
+              expected = archive
+          else:
+              expected = root / 'dist' / asset
+              if sys.platform == 'win32' and expected.suffix.lower() != '.exe':
+                  expected = expected.with_suffix('.exe')
+              if not expected.is_file():
+                  raise SystemExit(f'Missing expected executable: {expected}')
+          print(f'Built {expected}')
+          PY
+
+      - name: Upload Windows/Linux executable
+        if: runner.os != 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: executable-${{ matrix.os }}
-          path: dist/${{ matrix.asset_name }}
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+      - name: Upload macOS archive
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}.tar.gz
+          if-no-files-found: error
 
   release:
-    name: Publish GitHub Release
+    name: Attach binaries to GitHub Release
     needs: build
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      - name: Download all built artifacts
+      - name: Download built artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: release-assets
           merge-multiple: true
 
-      - name: Create Release and Attach Binaries
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name || github.ref_name }}
-          name: Release ${{ github.event.release.tag_name || github.ref_name }}
-          files: artifacts/*
+          tag_name: >-
+            ${{ github.event_name == 'push' && github.ref_name ||
+                github.event_name == 'release' && github.event.release.tag_name ||
+                format('manual-{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: release-assets/*
