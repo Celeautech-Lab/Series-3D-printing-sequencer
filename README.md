@@ -8,6 +8,21 @@ A Python/Tkinter desktop application that builds a print series from several G-c
 
 > **Repository:** [github.com/Celeautech-Lab/Series-3D-printing-sequencer](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer)
 
+## Standalone Downloads & Releases
+
+Pre-compiled standalone binaries for Windows, Linux, and macOS (Apple Silicon) are automatically built and published with each release. No Python installation is required to run them.
+
+Download the latest version: [Releases Page](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/releases/latest)
+
+| OS | File | Status |
+| :--- | :--- | :--- |
+| Windows | PrintSeriesGenerator-Windows.exe | Tested & verified |
+| Linux | PrintSeriesGenerator-Linux | Built via CI (untested) |
+| macOS (Apple Silicon) | PrintSeriesGenerator-macOS-AppleSilicon.tar.gz | Built via CI (untested) |
+
+> **Note on Compatibility:**  
+> Currently, only the Windows executable has been tested and verified locally. The Linux and macOS builds are compiled automatically through the GitHub Actions CI pipeline and have not been validated on target hardware yet. Feedback and issue reports for these platforms are welcome.
+
 ## How it works
 
 The application scans a folder, checks the markers in each G-code file, optionally reads `serie.csv`, shows the sequence in an editable table and generates a compiled G-code file.
