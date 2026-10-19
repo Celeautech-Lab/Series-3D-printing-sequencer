@@ -1,0 +1,102 @@
+name: Build and release standalone binaries
+
+on:
+  push:
+    branches: ["main", "master"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} binary
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: PrintSeriesGenerator-Windows-x64.exe
+            separator: ";"
+            is_mac: false
+
+          - os: ubuntu-latest
+            asset: PrintSeriesGenerator-Linux-x64
+            separator: ":"
+            is_mac: false
+
+          - os: macos-latest
+            asset: PrintSeriesGenerator-macOS-AppleSilicon
+            separator: ":"
+            is_mac: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Indispensable sur Ubuntu pour que Tkinter soit disponible
+      - name: Install system dependencies (Linux Tkinter)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      # Compilation pour Windows et Linux (fichier unique)
+      - name: Build standalone executable (Windows / Linux)
+        if: ${{ !matrix.is_mac }}
+        shell: bash
+        run: >-
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name "${{ matrix.asset }}"
+          --paths src
+          --add-data "src/settings.json${{ matrix.separator }}src"
+          src/main.py
+
+      # Compilation pour macOS (crée une archive .tar.gz de l'app)
+      - name: Build standalone executable (macOS)
+        if: ${{ matrix.is_mac }}
+        shell: bash
+        run: |
+          pyinstaller --noconfirm --clean --windowed \
+            --name "PrintSeriesGenerator" \
+            --paths src \
+            --add-data "src/settings.json${{ matrix.separator }}src" \
+            src/main.py
+          tar -czf "dist/${{ matrix.asset }}.tar.gz" -C dist PrintSeriesGenerator.app
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Attach binaries to GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    # Ne crée la release publique que si tu as poussé un tag (ex: v1.0.0) ou déclenché manuellement
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('manual-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Manual build {0}', github.run_number) }}
+          generate_release_notes: true
+          files: release-assets/*

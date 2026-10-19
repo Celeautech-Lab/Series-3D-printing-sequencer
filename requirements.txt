@@ -1,0 +1,2 @@
+# Runtime dependencies: none (Python standard library only).
+# tkinter/Tk must be installed by the operating system for the GUI.
