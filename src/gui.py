@@ -18,7 +18,7 @@ except ImportError:  # Supports direct execution from the src directory.
     from validator import check_files
 
 GCODE_EXTENSIONS = {".gcode", ".gco", ".g"}
-DOC_URL = "https://github.com/CelestinSegesse/Celeauprinter/blob/main/README_TAGS.md"
+DOC_URL = "https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/blob/main/README.md"
 SERIE_CSV_NAME = "serie.csv"
 
 
