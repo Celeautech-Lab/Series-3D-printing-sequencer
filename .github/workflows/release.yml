@@ -1,81 +1,109 @@
-name: Build and release standalone binaries
+name: Build & Release Executables
 
 on:
+  release:
+    types: [published, created]
   push:
     tags:
-      - "v*"
+      - 'v*.*.*'
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Build ${{ matrix.os }} binary
+    name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            asset: PrintSeriesGenerator-Windows-x64.exe
           - os: ubuntu-latest
-            asset: PrintSeriesGenerator-Linux-x64
+            asset_name: PrintSeriesGenerator-Linux
+          - os: windows-latest
+            asset_name: PrintSeriesGenerator-Windows.exe
           - os: macos-latest
-            asset: PrintSeriesGenerator-macOS-AppleSilicon
+            asset_name: PrintSeriesGenerator-macOS-AppleSilicon.tar.gz
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.12'
 
-      - name: Install Linux Tkinter dependency
+      - name: Install Linux system dependencies (Tkinter)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-tk
 
-      - name: Install PyInstaller
-        run: python -m pip install --upgrade pip pyinstaller
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Build executable or macOS archive
-        run: python build_exe.py --asset "${{ matrix.asset }}"
+      - name: Build Executable with PyInstaller
+        run: python build_exe.py
 
-      - name: Upload Windows/Linux executable
-        if: runner.os != 'macOS'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}
-          if-no-files-found: error
+      - name: Prepare Asset for Upload (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x dist/PrintSeriesGenerator
+          mv dist/PrintSeriesGenerator dist/${{ matrix.asset_name }}
 
-      - name: Upload macOS archive
+      - name: Prepare Asset for Upload (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mv dist/PrintSeriesGenerator.exe dist/${{ matrix.asset_name }}
+
+      - name: Prepare Asset for Upload (macOS)
         if: runner.os == 'macOS'
+        run: |
+          cd dist
+          if [ -d "PrintSeriesGenerator.app" ]; then
+            tar -czf ${{ matrix.asset_name }} PrintSeriesGenerator.app
+          else
+            chmod +x PrintSeriesGenerator
+            tar -czf ${{ matrix.asset_name }} PrintSeriesGenerator
+          fi
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}.tar.gz
-          if-no-files-found: error
+          name: executable-${{ matrix.os }}
+          path: dist/${{ matrix.asset_name }}
 
   release:
-    name: Attach binaries to GitHub Release
+    name: Publish GitHub Release
     needs: build
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
+
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: release-assets
+          path: artifacts
           merge-multiple: true
 
-      - name: Create GitHub Release and upload binaries
+      - name: Create Release and Attach Binaries
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('manual-{0}', github.run_number) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Manual build {0}', github.run_number) }}
+          tag_name: ${{ github.event.release.tag_name || github.ref_name }}
+          name: Release ${{ github.event.release.tag_name || github.ref_name }}
+          files: artifacts/*
           generate_release_notes: true
-          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
