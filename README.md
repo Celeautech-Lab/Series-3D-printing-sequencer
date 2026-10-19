@@ -68,7 +68,7 @@ A graphical desktop session is required. The source entry point opens the Tkinte
 8. Open **Settings** and review the inter-part transition G-code. Adapt it to the target machine.
 9. Click **Generate G-code**, choose an output path, and inspect the saved file before sending it to a printer.
 
-![Print sequence overview](docs/images/print-sequence-overview.png)
+![Print sequence overview](media/print-sequence-overview.png)
 
 *Review the print order, occurrences, cycle count, and generated totals before composing the series.*
 
@@ -185,7 +185,7 @@ G28
 ; --- END BELT TRANSITION ---
 ```
 
-![Inter-part transition settings](docs/images/inter-part-transition-settings.png)
+![Inter-part transition settings](media/inter-part-transition-settings.png)
 
 *The inter-part transition is editable and persistent; it must be adapted to the target printer and firmware.*
 
@@ -205,7 +205,7 @@ G-code is executable machine instruction, not harmless document data. Treat sour
 
 ## Validation, errors, and limitations
 
-![G-code validation report](docs/images/gcode-validation-report.png)
+![G-code validation report](media/gcode-validation-report.png)
 
 *Files with invalid body markers are reported and excluded from the sequence.*
 
