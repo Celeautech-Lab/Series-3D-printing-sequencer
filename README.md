@@ -2,37 +2,37 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Interface](https://img.shields.io/badge/interface-Tkinter-2E8B57)](https://docs.python.org/3/library/tkinter.html)
-[![Licence](https://img.shields.io/badge/licence-PolyForm_Noncommercial-orange.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-PolyForm_Noncommercial-orange.svg)](LICENSE)
 
-Application de bureau en Python/Tkinter qui assemble une série d'impressions à partir de plusieurs fichiers G-code. Elle conserve le **Header** du premier fichier, enchaîne les **Body** dans l'ordre et le nombre demandés, insère une transition/éjection entre chaque pièce, puis conserve le **Footer** du dernier fichier.
+A Python/Tkinter desktop application that builds a print series from several G-code files. It keeps the **Header** of the first file, chains the **Body** sections in the requested order and quantity, inserts a transition/ejection between each part, and keeps the **Footer** of the last file.
 
-> **Dépôt :** [github.com/Celeautech/Series-3D-printing-sequencer](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer)
+> **Repository:** [github.com/Celeautech-Lab/Series-3D-printing-sequencer](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer)
 
-## Fonctionnement général
+## How it works
 
-L'application parcourt un dossier, vérifie les marqueurs de chaque fichier G-code, lit éventuellement `serie.csv`, affiche la séquence dans une table modifiable et génère un fichier G-code compilé.
+The application scans a folder, checks the markers in each G-code file, optionally reads `serie.csv`, shows the sequence in an editable table and generates a compiled G-code file.
 
-### Header, Body et Footer
+### Header, Body and Footer
 
-Chaque fichier source doit avoir exactement un marqueur de début et un marqueur de fin :
+Each source file must contain exactly one start marker and one end marker:
 
 ```gcode
 ; BODYSTART
-; ... commandes d'impression de la pièce ...
+; ... part printing commands ...
 ; BODYEND
 ```
 
-Le compositeur découpe alors chaque fichier en trois zones :
+The composer then splits each file into three sections:
 
-- **Header** : tout ce qui précède `; BODYSTART` — démarrage, chauffage, homing, etc. ;
-- **Body** : tout ce qui se trouve entre `; BODYSTART` et `; BODYEND` — le parcours de la pièce ;
-- **Footer** : tout ce qui suit `; BODYEND` — refroidissement ou fin de programme.
+- **Header**: everything before `; BODYSTART` (startup, heating, homing, etc.);
+- **Body**: everything between `; BODYSTART` and `; BODYEND` (the toolpath of the part);
+- **Footer**: everything after `; BODYEND` (cooldown or end of program).
 
-Dans le fichier final, le Header du premier fichier développé est écrit une seule fois, les Body sont concaténés dans l'ordre, et le Footer du dernier fichier développé est écrit une seule fois. Une séquence d'éjection/transition est insérée **après chaque pièce imprimée, y compris après la toute dernière**. Cette règle permet de libérer également la dernière pièce ; il faut donc prévoir un refroidissement ou une attente dans la transition si le procédé l'exige.
+In the final file, the Header of the first expanded file is written once, the Bodies are concatenated in order, and the Footer of the last expanded file is written once. An ejection/transition sequence is inserted **after every printed part, including the very last one**. This rule also frees the last part, so you need to include a cooldown or a wait in the transition if your process requires it.
 
-### Exemple exact : 7 cycles
+### Worked example: 7 cycles
 
-Le plan suivant est utilisé :
+The following plan is used:
 
 ```csv
 Cycles,7
@@ -42,50 +42,50 @@ Rank,Filename,Occurrences
 3,PART_3.gcode,6
 ```
 
-Un cycle contient donc :
+One cycle therefore contains:
 
 ```text
-4 × PART_1.gcode + 5 × PART_2.gcode + 6 × PART_3.gcode = 15 pièces
+4 × PART_1.gcode + 5 × PART_2.gcode + 6 × PART_3.gcode = 15 parts
 ```
 
-Le fichier produit suit cette séquence :
+The generated file follows this sequence:
 
 ```text
-1 chauffage initial / homing (Header)
-Cycle 1 : 4 × PART_1 + 5 × PART_2 + 6 × PART_3, avec une éjection après chaque pièce
-Cycle 2 : 4 × PART_1 + 5 × PART_2 + 6 × PART_3, avec une éjection après chaque pièce
+1 initial heating / homing (Header)
+Cycle 1: 4 × PART_1 + 5 × PART_2 + 6 × PART_3, with an ejection after each part
+Cycle 2: 4 × PART_1 + 5 × PART_2 + 6 × PART_3, with an ejection after each part
 ...
-Cycle 7 : 4 × PART_1 + 5 × PART_2 + 6 × PART_3, avec une éjection après chaque pièce
-1 refroidissement final (Footer)
+Cycle 7: 4 × PART_1 + 5 × PART_2 + 6 × PART_3, with an ejection after each part
+1 final cooldown (Footer)
 ```
 
-Le résultat est de **7 cycles de [4 × PART_1 + 5 × PART_2 + 6 × PART_3] = 105 pièces et 105 éjections**, suivis d'un refroidissement final. Le Header global est celui de la première pièce développée et le Footer global celui de la dernière. La dernière éjection est bien présente avant le Footer.
+The result is **7 cycles of [4 × PART_1 + 5 × PART_2 + 6 × PART_3] = 105 parts and 105 ejections**, followed by a final cooldown. The global Header comes from the first expanded part and the global Footer from the last one. The last ejection does appear before the Footer.
 
-> Le compteur d'occurrences est le nombre d'exemplaires d'une ligne dans chaque cycle. Une occurrence à `0` exclut la ligne ; si toutes les occurrences valent `0`, la génération est refusée.
+> The occurrence count is the number of copies of a row in each cycle. An occurrence of `0` excludes the row. If all occurrences are `0`, generation is refused.
 
-## Installation et lancement
+## Installation and launch
 
-Le projet utilise Python et la bibliothèque standard, notamment Tkinter :
+The project uses Python and its standard library, including Tkinter:
 
 ```bash
-git clone https://github.com/Celeautech/Series-3D-printing-sequencer.git
+git clone https://github.com/Celeautech-Lab/Series-3D-printing-sequencer.git
 cd Series-3D-printing-sequencer
 python main.py
 ```
 
-Sous Debian/Ubuntu, installer Tkinter si nécessaire :
+On Debian/Ubuntu, install Tkinter if needed:
 
 ```bash
 sudo apt install python3-tk
 ```
 
-L'application démarre depuis `main.py` et ouvre l'interface graphique.
+The application starts from `main.py` and opens the graphical interface.
 
-## Préparer les fichiers G-code avec le slicer
+## Preparing G-code files in the slicer
 
-### Marqueurs requis
+### Required markers
 
-Dans le G-code exporté, les lignes suivantes délimitent le Body :
+In the exported G-code, the following lines delimit the Body:
 
 ```gcode
 ; BODYSTART
@@ -93,124 +93,124 @@ Dans le G-code exporté, les lignes suivantes délimitent le Body :
 ; BODYEND
 ```
 
-Le validateur travaille ligne par ligne après suppression des espaces extérieurs. Une ligne est acceptée si elle **commence** par le marqueur ; elle peut donc contenir un commentaire complémentaire après celui-ci. Chaque fichier doit contenir un seul `; BODYSTART` et un seul `; BODYEND`, dans cet ordre.
+The validator works line by line after stripping leading and trailing whitespace. A line is accepted if it **starts** with the marker, so it can include an extra comment after it. Each file must contain a single `; BODYSTART` and a single `; BODYEND`, in that order.
 
 ### PrusaSlicer
 
-1. Ouvrir **Printer Settings → Custom G-code**.
-2. Ajouter `; BODYSTART` au début du **Start G-code** de la pièce, après les commandes communes de chauffage/homing si celles-ci doivent rester dans le Header.
-3. Ajouter `; BODYEND` dans l'**End G-code** de la pièce, avant les commandes qui doivent constituer le Footer.
-4. Trancher puis exporter chaque pièce en `.gcode`.
+1. Open **Printer Settings → Custom G-code**.
+2. Add `; BODYSTART` at the beginning of the part's **Start G-code**, after the shared heating/homing commands if those should stay in the Header.
+3. Add `; BODYEND` in the part's **End G-code**, before the commands that should form the Footer.
+4. Slice and export each part as `.gcode`.
 
-Pour une série, vérifier dans un fichier exporté que les deux commentaires sont présents une seule fois et que le prochain fichier commence avec les mêmes hypothèses de positionnement et d'extrusion.
+For a series, check in an exported file that both comments appear only once and that the next file starts with the same positioning and extrusion assumptions.
 
 ### OrcaSlicer
 
-1. Aller dans **Printer → Machine start G-code** pour les commandes communes et dans les réglages de **Printer / Process → Custom G-code** selon la version.
-2. Placer `; BODYSTART` au point où commence réellement le parcours de la pièce.
-3. Placer `; BODYEND` immédiatement après le dernier mouvement propre à la pièce et avant le Footer.
-4. Exporter les fichiers et inspecter le texte produit : les noms des menus peuvent varier selon la version et le profil.
+1. Go to **Printer → Machine start G-code** for the shared commands, and to **Printer / Process → Custom G-code** depending on the version.
+2. Place `; BODYSTART` where the part's toolpath actually begins.
+3. Place `; BODYEND` right after the last move belonging to the part and before the Footer.
+4. Export the files and inspect the generated text: menu names may vary by version and profile.
 
 ### Bambu Studio
 
-1. Ouvrir le profil imprimante et les champs de G-code personnalisé accessibles dans **Machine start G-code** et **Machine end G-code** (ou **Printer settings**, selon la version).
-2. Ajouter `; BODYSTART` et `; BODYEND` dans les emplacements personnalisés qui encadrent les commandes propres à la pièce.
-3. Vérifier le fichier `.gcode` exporté, car Bambu Studio peut ajouter des commandes machine avant et après les commandes personnalisées.
+1. Open the printer profile and the custom G-code fields under **Machine start G-code** and **Machine end G-code** (or **Printer settings**, depending on the version).
+2. Add `; BODYSTART` and `; BODYEND` in the custom sections that surround the part-specific commands.
+3. Check the exported `.gcode` file, because Bambu Studio may add machine commands before and after the custom commands.
 
-Si le profil Bambu ne permet pas de placer proprement les deux marqueurs autour du seul Body, ne pas utiliser le fichier tel quel : l'import affichera l'erreur de structure correspondante.
+If the Bambu profile does not let you place both markers cleanly around the Body only, do not use the file as is: the import will show the matching structure error.
 
 ### Cura
 
-1. Ouvrir **Settings → Printer → Manage Printers → Machine Settings**.
-2. Utiliser les zones **Start G-code** et **End G-code** pour placer les marqueurs au début et à la fin de la zone à séquencer.
-3. Exporter le fichier et rechercher `; BODYSTART` puis `; BODYEND` dans un éditeur texte.
+1. Open **Settings → Printer → Manage Printers → Machine Settings**.
+2. Use the **Start G-code** and **End G-code** fields to place the markers at the start and end of the section to sequence.
+3. Export the file and search for `; BODYSTART` and then `; BODYEND` in a text editor.
 
-Dans tous les slicers, les marqueurs sont des commentaires : ils ne déplacent pas la machine. Ils servent uniquement de contrat de découpage pour le séquenceur.
+In every slicer, the markers are comments: they do not move the machine. They only serve as a splitting contract for the sequencer.
 
-## Configuration du Firmware & Prérequis Matériels (Klipper / Marlin / RepRapFirmware)
+## Firmware Configuration & Hardware Requirements (Klipper / Marlin / RepRapFirmware)
 
-Cette application ne peut pas deviner la cinématique du tapis, les broches, les fins de course, les limites de course ni la méthode de poussée de votre imprimante. Le fichier d'éjection dépend du matériel et du firmware. Comme aucun tapis roulant réel n'est disponible ici pour tester une éjection déterminée, le dépôt ne fournit pas de fichier d'éjection universel non testé : il faut configurer et valider la transition sur la machine cible.
+This application cannot guess your printer's belt kinematics, pins, endstops, travel limits or pushing method. The ejection code depends on the hardware and firmware. Since no real conveyor belt is available here to test a specific ejection, the repository does not ship an untested universal ejection file: you must configure and validate the transition on the target machine.
 
-Avant une longue série, tester la transition à vide, buse dégagée, à faible vitesse et avec un arrêt d'urgence accessible. Les exemples ci-dessous sont des patrons à adapter ; ils ne constituent pas des commandes prêtes à l'emploi pour toutes les cartes.
+Before a long series, test the transition without a part, with the nozzle clear, at low speed and with an emergency stop within reach. The examples below are templates to adapt. They are not ready-to-use commands for every board.
 
-### Extrudeur entre deux pièces : `M82`, `M83` et `G92 E0`
+### Extruder between parts: `M82`, `M83` and `G92 E0`
 
-- `M82` sélectionne l'extrusion **absolue** : la valeur `E` s'accumule pendant le fichier ;
-- `M83` sélectionne l'extrusion **relative** : chaque valeur `E` est un déplacement relatif ;
-- `G92 E0` remet à zéro la position logique de l'extrudeur sans pousser ni rétracter de filament.
+- `M82` selects **absolute** extrusion: the `E` value accumulates throughout the file;
+- `M83` selects **relative** extrusion: each `E` value is a relative move;
+- `G92 E0` resets the extruder's logical position without pushing or retracting filament.
 
-À la frontière entre deux Body, placer `G92 E0` à un endroit cohérent avec le slicer, typiquement en fin de transition ou au début du Body suivant. C'est indispensable lorsque le slicer travaille en absolu : sans ce reset, un fichier qui termine à `E2450` peut faire interpréter la prochaine petite valeur comme une énorme rétraction ou une avance excessive. Vérifier les premiers et derniers mouvements `E` des fichiers sources et conserver une politique cohérente.
+At the boundary between two Bodies, place `G92 E0` where it is consistent with the slicer, typically at the end of the transition or at the start of the next Body. This is essential when the slicer works in absolute mode: without this reset, a file that ends at `E2450` can cause the next small value to be interpreted as a huge retraction or excessive feed. Check the first and last `E` moves of the source files and keep a consistent policy.
 
-Exemple de principe :
+Example of the principle:
 
 ```gcode
-; fin du Body précédent / transition
+; end of previous Body / transition
 G92 E0
-; séquence d'éjection validée sur la machine
-; avant le prochain Body
+; ejection sequence validated on the machine
+; before the next Body
 G90
-M82                 ; ou M83, exactement selon le G-code du slicer
-G92 E0              ; si le début du Body l'exige
+M82                 ; or M83, exactly as in the slicer's G-code
+G92 E0              ; if the start of the Body requires it
 ```
 
-Ne pas ajouter aveuglément `M82` ou `M83` : le mode final doit être celui attendu par le prochain fichier.
+Do not blindly add `M82` or `M83`: the final mode must be the one the next file expects.
 
-### Positionnement absolu : `G90` et relatif : `G91`
+### Absolute positioning `G90` and relative positioning `G91`
 
-`G90` active le positionnement absolu des axes et `G91` le positionnement relatif. Une éjection utilise souvent `G91` pour lever la buse d'une distance contrôlée, puis `G90` pour une position ou un balayage absolu. Le G-code de transition doit **toujours terminer en `G90`**, et remettre aussi `M82` ou `M83` dans le mode attendu avant que le Body suivant commence :
+`G90` enables absolute axis positioning and `G91` enables relative positioning. An ejection often uses `G91` to lift the nozzle by a controlled distance, then `G90` for an absolute position or sweep. The transition G-code must **always end in `G90`**, and must also restore `M82` or `M83` to the expected mode before the next Body starts:
 
 ```gcode
 M400
 G91
 G1 Z15 F600
-G90                 ; obligatoire avant le Body suivant
+G90                 ; required before the next Body
 G92 E0
-M82                 ; ou M83 selon le slicer
+M82                 ; or M83 depending on the slicer
 ```
 
-Laisser la machine en `G91` peut décaler toutes les coordonnées du Body suivant et provoquer une collision.
+Leaving the machine in `G91` can offset every coordinate of the next Body and cause a collision.
 
-### Pilotage d'un tapis roulant ou d'un axe auxiliaire
+### Driving a conveyor belt or an auxiliary axis
 
-Le tapis doit avoir une direction, une distance, une vitesse, une butée et une zone de sécurité validées. Il est préférable d'appeler une macro dédiée plutôt que d'insérer dans chaque fichier une séquence dépendante de la carte.
+The belt must have a validated direction, distance, speed, end stop and safety zone. It is better to call a dedicated macro than to insert a board-specific sequence into every file.
 
 #### Klipper
 
-Configurer dans `printer.cfg` un `[manual_stepper belt]` correctement calibré, ou une macro G-code dédiée. La transition peut appeler :
+Configure a properly calibrated `[manual_stepper belt]` in `printer.cfg`, or a dedicated G-code macro. The transition can call:
 
 ```gcode
 EJECT_PART
 G92 E0
 G90
-M82                 ; ou M83, selon le slicer
+M82                 ; or M83, depending on the slicer
 ```
 
-La macro `EJECT_PART` doit contenir les mouvements autorisés, les attentes, les limites et, si nécessaire, les fins de course. Avec un `manual_stepper`, le principe peut être :
+The `EJECT_PART` macro must contain the allowed moves, waits, limits and, if needed, endstops. With a `manual_stepper`, the principle can be:
 
 ```gcode
 MANUAL_STEPPER STEPPER=belt MOVE=400 SPEED=50
 ```
 
-Cette commande n'est valide que si le bloc `[manual_stepper belt]` et ses paramètres existent réellement dans `printer.cfg`. Tester la macro seule avant de l'appeler depuis la série.
+This command is only valid if the `[manual_stepper belt]` section and its parameters actually exist in `printer.cfg`. Test the macro on its own before calling it from the series.
 
 #### Marlin
 
-Marlin peut utiliser un axe secondaire configuré (`U`, `V` ou `W`), un second extrudeur `T1` configuré sans chauffe, ou une broche GPIO. Pour un extrudeur utilisé comme axe mécanique, la protection d'extrusion à froid doit être traitée conformément à la configuration de la carte ; `M302 S0` désactive l'extrusion à froid et ne doit être employé que si cette fonction est réellement nécessaire et sûre. Une broche peut être pilotée avec `M42` si le pin et ses niveaux ont été documentés.
+Marlin can use a configured secondary axis (`U`, `V` or `W`), a second extruder `T1` configured without heating, or a GPIO pin. For an extruder used as a mechanical axis, cold extrusion protection must be handled according to the board configuration. `M302 S0` disables cold extrusion protection and should only be used if this is truly necessary and safe. A pin can be driven with `M42` if the pin and its levels have been documented.
 
 ```gcode
-; Exemple conceptuel : axe U/V/W, T1 ou macro définie dans Marlin
+; Conceptual example: U/V/W axis, T1 or macro defined in Marlin
 ; EJECT_PART
-; ou commande d'axe configurée par le firmware
-M42 P<pin> S<0-ou-1>  ; seulement après validation du pin et du niveau
+; or axis command configured by the firmware
+M42 P<pin> S<0-or-1>  ; only after validating the pin and level
 G92 E0
 G90
 ```
 
-Ne pas supposer que `MANUAL_STEPPER` existe sous Marlin. La commande exacte dépend de la version, de la carte et de `Configuration.h`/`Configuration_adv.h`.
+Do not assume `MANUAL_STEPPER` exists in Marlin. The exact command depends on the version, the board and `Configuration.h`/`Configuration_adv.h`.
 
 #### RepRapFirmware (Duet)
 
-Définir l'axe linéaire supplémentaire et son driver dans `config.g`, avec ses pas/mm, limites, sens et fins de course. Une macro système peut ensuite être appelée depuis la transition :
+Define the additional linear axis and its driver in `config.g`, with its steps/mm, limits, direction and endstops. A system macro can then be called from the transition:
 
 ```gcode
 M98 P"eject.g"
@@ -218,32 +218,32 @@ G92 E0
 G90
 ```
 
-Le chemin peut être par exemple `0:/sys/macros/eject.g` selon l'installation. Le fichier macro et l'axe doivent être validés manuellement sur la Duet ; le nom du driver et la syntaxe peuvent varier avec la configuration.
+The path may be, for example, `0:/sys/macros/eject.g` depending on the setup. The macro file and the axis must be validated manually on the Duet. The driver name and syntax may vary with the configuration.
 
-### Alternative sans tapis : éjection par poussée du portique
+### Alternative without a belt: gantry push-off ejection
 
-Sur une CoreXY ou une cartésienne standard équipée d'un pousse-pièce, lever la buse, attendre si nécessaire le refroidissement du plateau, puis effectuer un balayage XY calibré :
+On a CoreXY or standard Cartesian printer fitted with a part pusher, lift the nozzle, wait for the bed to cool if needed, then perform a calibrated XY sweep:
 
 ```gcode
 M400
 G91
 G1 Z15 F600
 G90
-M190 R30           ; attendre environ 30 °C si le procédé le nécessite
-; balayage/poussée XY calibré ici
+M190 R30           ; wait for about 30 °C if the process requires it
+; calibrated XY sweep/push here
 G92 E0
 G90
-M190 S<temperature_plateau> ; remettre en chauffe pour la pièce suivante
-M109 S<temperature_buse>    ; si le procédé l'exige
+M190 S<bed_temperature>    ; reheat for the next part
+M109 S<nozzle_temperature> ; if the process requires it
 ```
 
-`M190 R30` est seulement un exemple : choisir une température adaptée au matériau. Après l'éjection, maintenir ou remettre en chauffe le plateau (`M190 S...`) et la buse (`M109 S...`) avant la pièce suivante. Contrôler les limites, clips, sonde, câbles, nozzle et position réelle de la pièce ; ne jamais copier des coordonnées de balayage sans les mesurer.
+`M190 R30` is only an example: choose a temperature suited to the material. After ejection, keep or restore bed heating (`M190 S...`) and nozzle heating (`M109 S...`) before the next part. Check the limits, clips, probe, cables, nozzle and the actual part position. Never copy sweep coordinates without measuring them.
 
-### Moteurs actifs, homing et temps d'inactivité
+### Active motors, homing and idle time
 
-Il est **interdit** de mettre `M84` ou `M18` dans le G-code de transition : désactiver les moteurs peut faire perdre des pas et la référence entre deux pièces. Sous Klipper, régler `[idle_timeout]` pour qu'un refroidissement ou une longue éjection ne coupe pas inopinément les moteurs ; examiner aussi le comportement équivalent du firmware utilisé.
+Putting `M84` or `M18` in the transition G-code is **forbidden**: disabling the motors can cause lost steps and loss of the reference between two parts. On Klipper, set `[idle_timeout]` so that a cooldown or a long ejection does not unexpectedly turn off the motors. Also check the equivalent behavior of your firmware.
 
-Après une éjection mécanique, il est possible d'ajouter, si la machine le permet et si la zone est dégagée :
+After a mechanical ejection, you can add the following if the machine allows it and the area is clear:
 
 ```gcode
 G28 X Y
@@ -251,46 +251,46 @@ G90
 G92 E0
 ```
 
-`G28 X Y` est optionnel et dépend de la machine. Il peut corriger une perte de pas, mais ne remplace ni le réglage mécanique ni le test de la transition. Un homing complet peut déplacer des mécanismes différemment : ne l'utiliser que si sa sécurité est connue.
+`G28 X Y` is optional and depends on the machine. It can correct lost steps, but it does not replace mechanical tuning or testing the transition. A full homing can move mechanisms differently: only use it if you know it is safe.
 
-### Contrôle avant production
+### Pre-production check
 
-Vérifier que :
+Make sure that:
 
-1. la transition finit en `G90` et dans le bon mode `M82`/`M83` ;
-2. `G92 E0` est placé à une frontière sûre ;
-3. le tapis ou le balayage possède des limites, une vitesse et un arrêt fiables ;
-4. aucun `M84`/`M18` ne désactive les moteurs et le timeout ne coupe pas le mouvement ;
-5. le fichier final contient le nombre attendu de Body, de transitions et d'éjections, y compris la dernière.
+1. the transition ends in `G90` and in the correct `M82`/`M83` mode;
+2. `G92 E0` is placed at a safe boundary;
+3. the belt or sweep has reliable limits, speed and stop;
+4. no `M84`/`M18` disables the motors, and the timeout does not cut motion;
+5. the final file contains the expected number of Bodies, transitions and ejections, including the last one.
 
-## Importer un dossier dans l'application
+## Importing a folder into the application
 
-1. Lancer `python main.py`.
-2. Cliquer sur **Select folder** (ou le bouton de sélection de dossier affiché par l'interface).
-3. Choisir le dossier qui contient les fichiers `.gcode`, `.gco` ou `.g`.
-4. L'application ne parcourt que ce dossier, pas ses sous-dossiers ; les autres extensions sont ignorées.
-5. Les fichiers valides apparaissent dans la table. Les fichiers invalides sont exclus de la séquence.
-6. Si un problème est détecté, la fenêtre modale **`Validation report`** s'ouvre. Cliquer sur **OK** pour conserver les fichiers valides et poursuivre.
-7. Vérifier les occurrences, l'ordre, le nombre de cycles et le G-code de transition dans les paramètres avant de générer.
+1. Run `python main.py`.
+2. Click **Select folder** (or the folder selection button shown in the interface).
+3. Choose the folder that contains the `.gcode`, `.gco` or `.g` files.
+4. The application only scans this folder, not its subfolders. Other extensions are ignored.
+5. Valid files appear in the table. Invalid files are excluded from the sequence.
+6. If a problem is detected, the **`Validation report`** dialog opens. Click **OK** to keep the valid files and continue.
+7. Check the occurrences, order, number of cycles and transition G-code in the settings before generating.
 
-Si aucun G-code pris en charge n'est trouvé, l'application affiche une erreur `No G-code files found in:` et vide la sélection du dossier.
+If no supported G-code is found, the application shows a `No G-code files found in:` error and clears the folder selection.
 
-## Créer ou modifier `serie.csv`
+## Creating or editing `serie.csv`
 
-### Depuis l'interface
+### From the interface
 
-Après avoir importé un dossier :
+After importing a folder:
 
-1. Modifier le nombre de cycles dans le champ correspondant.
-2. Modifier une occurrence directement dans la table (double-clic ou contrôle numérique selon la version de l'interface).
-3. Réordonner les lignes par glisser-déposer si nécessaire.
-4. Utiliser **Save series** pour écrire `serie.csv` dans le dossier choisi.
+1. Change the number of cycles in the matching field.
+2. Edit an occurrence directly in the table (double-click or numeric control, depending on the interface version).
+3. Reorder the rows by drag and drop if needed.
+4. Use **Save series** to write `serie.csv` to the selected folder.
 
-Le fichier peut aussi être créé automatiquement par l'interface à partir des lignes visibles. Lors de l'édition dans la table, la valeur est limitée à `0`–`999` et une valeur négative saisie dans l'interface est ramenée à `0`. Lors de la lecture d'un CSV, en revanche, toute occurrence entière `>= 0` est acceptée (il n'y a pas de plafond à `999`) et une valeur négative provoque une erreur de format.
+The interface can also create the file automatically from the visible rows. When editing in the table, the value is limited to `0`–`999`, and a negative value entered in the interface is reset to `0`. When reading a CSV, however, any integer occurrence `>= 0` is accepted (there is no `999` cap), and a negative value causes a format error.
 
-### Avec Excel ou un éditeur de texte
+### With Excel or a text editor
 
-Créer un fichier nommé exactement `serie.csv`, encodé en UTF-8, avec la structure exacte suivante : une ligne `Cycles,<nombre>`, puis l'en-tête `Rank,Filename,Occurrences`, puis une ligne par fichier.
+Create a file named exactly `serie.csv`, UTF-8 encoded, with this exact structure: a `Cycles,<number>` line, then the `Rank,Filename,Occurrences` header, then one line per file.
 
 ```csv
 Cycles,7
@@ -300,66 +300,66 @@ Rank,Filename,Occurrences
 3,PART_3.gcode,6
 ```
 
-`Cycles,7` signifie sept passages du plan. Les lignes suivantes signifient respectivement 4, 5 et 6 exemplaires par cycle. Le parseur exige l'en-tête de la deuxième ligne ; un fichier sans cette ligne, comme une simple succession de lignes de données après `Cycles,7`, est invalide. Les noms doivent correspondre exactement aux fichiers présents dans le dossier importé.
+`Cycles,7` means seven passes through the plan. The following lines mean 4, 5 and 6 copies per cycle, respectively. The parser requires the header on the second line. A file without it, such as plain data lines directly after `Cycles,7`, is invalid. Filenames must exactly match the files in the imported folder.
 
-Le parseur lit les deux premières colonnes de la ligne `Cycles` et les trois premières colonnes de l'en-tête et des données. Il accepte un BOM UTF-8 et ignore les lignes entièrement vides. Les rangs sont numériques et sont triés avant la composition. Le nombre de cycles doit être un entier supérieur ou égal à `1`, et les occurrences doivent être des entiers supérieurs ou égaux à `0`.
+The parser reads the first two columns of the `Cycles` line and the first three columns of the header and data lines. It accepts a UTF-8 BOM and ignores completely empty lines. Ranks are numeric and are sorted before composition. The number of cycles must be an integer greater than or equal to `1`, and occurrences must be integers greater than or equal to `0`.
 
-**Enregistrement depuis l'interface.** Le bouton **Save series** crée ou écrase `serie.csv` dans le dossier sélectionné (ou dans un dossier choisi si aucun dossier n'est chargé). Il écrit la même structure, avec une virgule finale vide sur la première ligne : `Cycles,7,`. Cette virgule est acceptée par le parseur ; pour le format exact demandé ci-dessus, supprimer cette dernière virgule dans un éditeur de texte après l'enregistrement.
+**Saving from the interface.** The **Save series** button creates or overwrites `serie.csv` in the selected folder (or in a folder you choose if none is loaded). It writes the same structure, with an empty trailing comma on the first line: `Cycles,7,`. The parser accepts this comma. If you want the exact format shown above, remove that trailing comma in a text editor after saving.
 
-## Règles de composition du G-code
+## G-code composition rules
 
-Pour le plan développé (cycles × lignes × occurrences), le fichier final prend cette forme logique :
+For the expanded plan (cycles × rows × occurrences), the final file has this logical structure:
 
 ```text
-Header du premier fichier
+Header of the first file
 ; BODYSTART
-Body de la pièce 1
-transition / éjection après la pièce 1
-Body de la pièce 2
+Body of part 1
+transition / ejection after part 1
+Body of part 2
 ...
-Body de la dernière pièce
-transition / éjection après la dernière pièce
+Body of the last part
+transition / ejection after the last part
 ; BODYEND
-Footer du dernier fichier
+Footer of the last file
 ```
 
-La transition est donc insérée **entre les Body et après le dernier Body**. Le bloc est stocké en ligne dans `settings.json`, sous la clé `transition_gcode`, et est modifiable depuis la fenêtre des paramètres. Il n'existe pas de recherche d'un fichier d'éjection séparé dans l'implémentation actuelle.
+The transition is therefore inserted **between Bodies and after the last Body**. The block is stored inline in `settings.json` under the `transition_gcode` key and can be edited from the settings window. The current implementation does not look for a separate ejection file.
 
-Un exemple intégré peut ressembler à ceci, mais il doit être remplacé ou adapté à la machine :
+A built-in example might look like this, but it must be replaced or adapted to your machine:
 
 ```gcode
-; --- TRANSITION A ADAPTER ---
+; --- TRANSITION TO ADAPT ---
 M400
 G91
 G1 Z15 F600
 G90
 EJECT_PART
 G92 E0
-; --- FIN TRANSITION ---
+; --- END TRANSITION ---
 ```
 
-Ne pas envoyer cet exemple sans avoir défini `EJECT_PART` et vérifié toute la cinématique.
+Do not send this example without defining `EJECT_PART` and checking all the kinematics.
 
-## Erreurs et dépannage
+## Errors and troubleshooting
 
-### Fenêtre modale `Validation report`
+### `Validation report` dialog
 
-Lors de l'import d'un dossier, la fenêtre **`Validation report`** peut s'ouvrir dès qu'un fichier contient un problème de marqueur ou que `serie.csv` comporte une erreur. C'est un rapport informatif : cliquer sur **OK** ne supprime pas les fichiers valides et n'annule pas l'import. Le rapport indique les fichiers exclus et la cause exacte.
+When a folder is imported, the **`Validation report`** dialog can open as soon as a file has a marker problem or `serie.csv` contains an error. It is an informational report: clicking **OK** does not remove the valid files and does not cancel the import. The report lists the excluded files and the exact cause.
 
-Causes de validation courantes :
+Common validation causes:
 
-- `BODYSTART and BODYEND tags missing` : aucun des deux marqueurs n'est trouvé ;
-- `BODYSTART tag missing` : le début manque ;
-- `BODYEND tag missing` : la fin manque ;
-- `BODYSTART tag duplicated` ou `BODYEND tag duplicated` : marqueur répété ;
-- `tag order reversed (BODYEND before BODYSTART)` : ordre inversé ;
-- `read failed (...)` : fichier impossible à lire.
+- `BODYSTART and BODYEND tags missing`: neither marker was found;
+- `BODYSTART tag missing`: the start marker is missing;
+- `BODYEND tag missing`: the end marker is missing;
+- `BODYSTART tag duplicated` or `BODYEND tag duplicated`: repeated marker;
+- `tag order reversed (BODYEND before BODYSTART)`: wrong order;
+- `read failed (...)`: the file cannot be read.
 
-Un fichier vide est signalé comme dépourvu des deux tags. Le validateur ne vérifie pas la validité sémantique de chaque commande G-code, les températures, les limites mécaniques ni la sécurité de l'éjection.
+An empty file is reported as missing both tags. The validator does not check the meaning of each G-code command, temperatures, mechanical limits or ejection safety.
 
-### Erreurs CSV
+### CSV errors
 
-Vérifier le nom exact `serie.csv`, l'encodage UTF-8, la première ligne `Cycles,7`, les rangs numériques, les noms de fichiers et les occurrences. Le rapport peut afficher notamment :
+Check the exact name `serie.csv`, the UTF-8 encoding, the first line `Cycles,7`, numeric ranks, filenames and occurrences. The report may show, among others:
 
 ```text
 CSV must have at least 2 rows (Cycles header and data header)
@@ -373,41 +373,41 @@ Row N: Occurrences is not an integer
 Row N: Occurrences must be >= 0
 ```
 
-Si une ligne du CSV référence un fichier absent ou invalide, elle est listée dans le même `Validation report`. En cas de CSV illisible ou mal formé, l'import affiche l'erreur puis remplit la table avec les fichiers G-code valides détectés ; les fichiers non listés dans un CSV valide ont alors `0` occurrence, et le champ des cycles conserve sa valeur courante (initialement `1`).
+If a CSV row references a missing or invalid file, it is listed in the same `Validation report`. If the CSV is unreadable or malformed, the import shows the error and then fills the table with the valid G-code files it found. Files not listed in a valid CSV get `0` occurrences, and the cycles field keeps its current value (initially `1`).
 
-L'absence de `serie.csv` n'est pas une erreur : l'application peut utiliser les fichiers valides découverts dans le dossier.
+A missing `serie.csv` is not an error: the application can use the valid files found in the folder.
 
-### Erreurs de génération et d'enregistrement
+### Generation and save errors
 
-| Situation | Message attendu |
+| Situation | Expected message |
 |---|---|
-| Aucun fichier valide chargé | `No file selected` |
-| Cycles non entier | `Invalid cycles value` |
-| Toutes les occurrences à zéro | `No parts selected (all occurrences are 0)` |
-| Échec de composition | `G-code composition failed:` suivi du détail |
-| Échec d'écriture | `Save failed:` suivi de l'erreur système |
-| Échec d'enregistrement de la série | `Series save failed:` suivi du détail |
+| No valid file loaded | `No file selected` |
+| Cycles value not an integer | `Invalid cycles value` |
+| All occurrences set to zero | `No parts selected (all occurrences are 0)` |
+| Composition failure | `G-code composition failed:` followed by details |
+| Write failure | `Save failed:` followed by the system error |
+| Series save failure | `Series save failed:` followed by details |
 
-Si aucun fichier G-code n'est trouvé, vérifier l'extension et le dossier sélectionné. Si la composition échoue, rouvrir le rapport, corriger les marqueurs, les noms CSV et les occurrences, puis réimporter le dossier. Avant d'imprimer, ouvrir le fichier généré et compter les `; BODYSTART`, `; BODYEND`, transitions et commandes d'éjection attendues.
+If no G-code file is found, check the extension and the selected folder. If composition fails, reopen the report, fix the markers, CSV filenames and occurrences, then re-import the folder. Before printing, open the generated file and count the expected `; BODYSTART`, `; BODYEND`, transitions and ejection commands.
 
-## Checklist avant génération
+## Pre-generation checklist
 
-1. Chaque fichier prévu possède exactement un `; BODYSTART` et un `; BODYEND` dans le bon ordre.
-2. Le dossier importé ne contient pas d'anciens G-code involontairement sélectionnés.
-3. `serie.csv` contient les bons cycles, noms, rangs et occurrences.
-4. La transition a été adaptée au firmware et au matériel réels.
-5. `G92 E0`, `G90`, `M82`/`M83`, les températures, les limites et les moteurs actifs ont été vérifiés.
-6. La dernière pièce est bien éjectée avant le Footer/refroidissement final.
-7. Le fichier généré a été inspecté et testé avec les procédures de sécurité habituelles de l'imprimante.
+1. Every planned file has exactly one `; BODYSTART` and one `; BODYEND` in the right order.
+2. The imported folder does not contain old G-code files selected by mistake.
+3. `serie.csv` contains the correct cycles, filenames, ranks and occurrences.
+4. The transition has been adapted to the actual firmware and hardware.
+5. `G92 E0`, `G90`, `M82`/`M83`, temperatures, limits and active motors have been checked.
+6. The last part is ejected before the Footer/final cooldown.
+7. The generated file has been inspected and tested using the printer's usual safety procedures.
 
-L'application valide la structure des marqueurs, les références de fichiers et le plan de série. Elle ne valide pas la compatibilité machine, la signification des commandes G-code, les limites de déplacement, les températures, les vitesses ni la sécurité physique.
+The application validates the marker structure, file references and series plan. It does not validate machine compatibility, the meaning of G-code commands, travel limits, temperatures, speeds or physical safety.
 
-## Licence & Usage Commercial
+## License & Commercial Use
 
-Ce projet est sous licence **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+This project is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
 
-- **Usage personnel / hobby / éducation :** Libre et encouragé.
-- **Usage commercial & dérivés :** Strictement interdit sans accord explicite préalable.
+- **Personal / hobby / educational use:** Free and encouraged.
+- **Commercial use & derivatives:** Strictly prohibited without prior explicit agreement.
 
-Pour toute demande de licence commerciale, intégration produit ou partenariat :  
-**Contact :** Antoine Navarro EI — [celeautech.contact@gmail.com](mailto:celeautech.contact@gmail.com)
+For commercial licensing, product integration or partnership inquiries:  
+**Contact:** Antoine Navarro EI — [celeautech.contact@gmail.com](mailto:celeautech.contact@gmail.com)
