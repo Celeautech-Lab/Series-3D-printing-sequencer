@@ -1,53 +1,117 @@
 # Print Series Generator
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Interface](https://img.shields.io/badge/interface-Tkinter-2E8B57)](https://docs.python.org/3/library/tkinter.html)
-[![License](https://img.shields.io/badge/license-PolyForm_Noncommercial-orange.svg)](LICENSE)
-
-A Python/Tkinter desktop application for building a print series from several G-code files. It keeps the **Header** of the first expanded file, chains the **Body** sections in the requested order and quantity, inserts a configurable transition after every part, and keeps the **Footer** of the last expanded file.
+A Python/Tkinter desktop application for composing a repeatable 3D-printing series from tagged G-code files. It validates the body boundaries, lets you define an ordered plan with per-cycle occurrences, inserts a configurable inter-part transition, and exports one compiled G-code file.
 
 > **Repository:** [Celeautech-Lab/Series-3D-printing-sequencer](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer)
 
-## Download (recommended)
+The application prepares text; it does not validate that a generated file is safe for a particular printer. The transition block, firmware state, motion limits, temperatures, and ejection hardware remain the operator's responsibility.
 
-For most users, download a ready-to-run executable from the repository's [**GitHub Releases**](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/releases) page. The release workflow publishes platform-specific assets when a release is created:
+## Contents
 
-- `PrintSeriesGenerator-Windows-x64.exe` — Windows x64;
-- `PrintSeriesGenerator-Linux-x64` — Linux x64;
-- `PrintSeriesGenerator-macOS-AppleSilicon.tar.gz` — macOS Apple Silicon application archive.
+- [Download a release](#download-a-release)
+- [Run from source](#run-from-source)
+- [Quick start](#quick-start)
+- [How composition works](#how-composition-works)
+- [Prepare source G-code](#prepare-source-g-code)
+- [`serie.csv` format](#seriecsv-format)
+- [Transition G-code and machine safety](#transition-g-code-and-machine-safety)
+- [Validation, errors, and limitations](#validation-errors-and-limitations)
+- [Build from source (optional)](#build-from-source-optional)
+- [License](#license)
 
-Download only from the project's GitHub repository, and inspect the release notes and asset name before running a file. On Linux, make the downloaded executable runnable if necessary:
+## Download a release
+
+The repository has a [v1.0.0 release](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/releases/tag/v1.0.0). Its release notes list these standalone assets:
+
+- `PrintSeriesGenerator-Windows.exe` — Windows;
+- `PrintSeriesGenerator-Linux` — Linux;
+- `PrintSeriesGenerator-macOS-AppleSilicon.tar.gz` — macOS Apple Silicon.
+
+These are compiled binaries, not the Python source tree. Download them from the repository's [Releases page](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/releases), inspect the release notes and asset name, and follow your organization's software policy before running them. The release page is the authority for currently published assets; the names above are the names attested in `v1.0.0` release notes.
+
+On Linux, the release notes provide:
 
 ```bash
-chmod +x PrintSeriesGenerator-Linux-x64
-./PrintSeriesGenerator-Linux-x64
+chmod +x PrintSeriesGenerator-Linux
+./PrintSeriesGenerator-Linux
 ```
 
-On macOS, extract the archive, then open the application bundle. Depending on macOS security settings, you may need to approve the application in **System Settings → Privacy & Security**. The binaries are produced by the repository's GitHub Actions workflow; verify the release provenance and your local security policy before use.
+On macOS, extract `PrintSeriesGenerator-macOS-AppleSilicon.tar.gz` and open the application bundle. macOS may require an approval in **System Settings → Privacy & Security**, depending on local security settings. The release notes identify Apple Silicon; they do not establish support for Intel macOS.
 
-## How it works
+## Run from source
 
-The application scans one selected folder for supported G-code files, validates their markers, optionally loads `serie.csv`, displays the plan in an editable table, and exports a compiled G-code file. It does not select or validate a universal mechanical ejection method: the transition block must be adapted and tested on the target printer.
+The repository source layout uses `src/` and the entry point is `src/main.py`:
+
+```bash
+git clone https://github.com/Celeautech-Lab/Series-3D-printing-sequencer.git
+cd Series-3D-printing-sequencer
+python src/main.py
+```
+
+The application uses Python's standard library and Tkinter. On Debian/Ubuntu, install Tkinter if it is not already available:
+
+```bash
+sudo apt install python3-tk
+```
+
+A graphical desktop session is required. The source entry point opens the Tkinter interface; cancelling the interface does not generate a sequence.
+
+## Quick start
+
+1. Launch the release binary or run `python src/main.py`.
+2. Click **Select folder** and choose the folder that directly contains the source G-code files. Subfolders are not scanned.
+3. The application recognizes `.gcode`, `.gco`, and `.g` files, case-insensitively. Other extensions are ignored.
+4. Review the validation report. Files with invalid markers are excluded; valid files are loaded into the table.
+5. If the folder contains `serie.csv`, review its imported cycles, order, and occurrences.
+6. Double-click an **Occurrences** value to edit it (`0`–`999` in the GUI), or drag rows to change their order.
+7. Set **Cycles**. The displayed totals are parts per cycle and total planned parts.
+8. Open **Settings** and review the inter-part transition G-code. Adapt it to the target machine.
+9. Click **Generate G-code**, choose an output path, and inspect the saved file before sending it to a printer.
+
+![Print sequence overview](docs/images/print-sequence-overview.png)
+
+*Review the print order, occurrences, cycle count, and generated totals before composing the series.*
+
+The **Save series** button creates or overwrites `serie.csv` in the selected folder. If no folder is selected, it asks for a destination folder.
+
+## How composition works
 
 ### Header, Body, and Footer
 
-Each source file must contain exactly one start marker and one end marker, on lines that are exactly these comments after leading and trailing whitespace are removed:
+Each source file must contain exactly one of each marker, in this order, with at least one line between them:
 
 ```gcode
 ; BODYSTART
-; ... part-printing commands ...
+; part-specific printing commands
 ; BODYEND
 ```
 
-The composer splits each file into:
+The composer splits every source file as follows:
 
-- **Header**: everything before `; BODYSTART`;
-- **Body**: everything between `; BODYSTART` and `; BODYEND`, excluding both markers;
-- **Footer**: everything after `; BODYEND`.
+- **Header:** all lines before `; BODYSTART`;
+- **Body:** all lines strictly between `; BODYSTART` and `; BODYEND`;
+- **Footer:** all lines after `; BODYEND`.
 
-The generated file contains the Header of the first expanded part once, one shared `; BODYSTART` marker, all Bodies in the selected order, a transition after every Body—including the last one—then one shared `; BODYEND` marker and the Footer of the last expanded part. The last transition therefore appears before the final Footer. If your process needs a cooldown, wait, or reheating step, include it in the transition and validate it on the machine.
+For the final file, the composer writes:
 
-### Worked example: seven cycles
+```text
+Header of the first expanded file
+; BODYSTART
+Body 1
+transition
+Body 2
+...
+Body N
+transition after Body N
+; BODYEND
+Footer of the last expanded file
+```
+
+The source marker lines are not copied for every part. One shared `; BODYSTART` and one shared `; BODYEND` are written around the combined bodies. The transition is inserted **after every body, including the final body**, so the final transition appears before the last footer.
+
+The expanded order is produced by repeating the selected table order for each cycle. Within one cycle, a row is repeated by its occurrence count before moving to the next row. A row with `0` occurrences contributes no body. Generation is refused when all occurrence counts are zero.
+
+### Example: seven cycles
 
 ```csv
 Cycles,7
@@ -57,61 +121,34 @@ Rank,Filename,Occurrences
 3,PART_3.gcode,6
 ```
 
-One cycle contains `4 + 5 + 6 = 15` parts. Seven cycles produce:
+One cycle contains `4 + 5 + 6 = 15` parts. Seven cycles produce 105 parts and 105 transitions. The sequence is seven repetitions of:
 
 ```text
-7 cycles × 15 parts per cycle = 105 parts
-105 transitions (one after every part, including the last)
+PART_1.gcode × 4, then PART_2.gcode × 5, then PART_3.gcode × 6
 ```
 
-The expanded order is seven repetitions of `4 × PART_1.gcode`, followed by `5 × PART_2.gcode`, followed by `6 × PART_3.gcode`, with the configured transition after each part. An occurrence count of `0` excludes a row; generation is refused if all occurrences are zero.
+The first file in the fully expanded order supplies the single output header; the last file in that order supplies the single output footer.
 
-## Use the application
+## Prepare source G-code
 
-1. Download and launch a release binary, or launch from source as described below.
-2. Click **Select folder** and choose the folder containing the source G-code files.
-3. The application scans that folder only (not subfolders) and recognizes `.gcode`, `.gco`, and `.g` files.
-4. Files with valid markers appear in the sequence table. Invalid files are excluded and listed in **Validation report**.
-5. If the selected folder contains `serie.csv`, it is loaded after file validation. Missing or invalid references are reported.
-6. Edit **Occurrences** by double-clicking a row, drag rows to change their order, and set **Cycles**.
-7. Open **Settings** to inspect or edit the inter-part transition G-code.
-8. Click **Generate G-code** and choose the output path. The save dialog uses `serie.gcode` as its default filename.
+The validator reads each file as UTF-8 with replacement for decoding errors and compares each line after `strip()`. A marker is accepted only when the complete stripped line is exactly the marker. For example, `; BODYSTART extra text` is **not** accepted.
 
-Use **Save series** to create or overwrite `serie.csv` in the selected folder. If no folder is loaded, the application asks where to save it. Cancelling the interface does not generate a sequence.
-
-## Preparing source G-code
-
-### Required markers
-
-Add these comments to every source file:
-
-```gcode
-; BODYSTART
-...
-; BODYEND
-```
-
-The current validator requires:
+Every file intended for the sequence must have:
 
 1. exactly one `; BODYSTART`;
 2. exactly one `; BODYEND`;
 3. `BODYSTART` before `BODYEND`;
 4. at least one line between the markers.
 
-A line such as `; BODYSTART extra text` is **not** accepted. The markers are comments and do not move the machine; they define the splitting contract used by the sequencer. Inspect the exported G-code and confirm that each marker appears once.
+The markers are comments: they do not move the printer. Place them around the part-specific commands you want to repeat. Commands before `; BODYSTART` become the first file's header; commands after `; BODYEND` become the last file's footer. Inspect each exported file rather than relying only on slicer menu labels.
 
-Place `; BODYSTART` where the part-specific toolpath begins, after any shared startup commands that should remain in the Header. Place `; BODYEND` after the last part-specific command and before commands that should remain in the Footer. Exact slicer menu names vary by version and profile, but the exported text is authoritative.
-
-Typical locations include:
-
-- **PrusaSlicer:** printer settings and custom start/end G-code fields;
-- **OrcaSlicer:** machine start G-code and the profile's custom G-code fields;
-- **Bambu Studio:** machine start/end G-code or printer settings, depending on the profile;
-- **Cura:** printer management and Machine Settings start/end G-code fields.
+Typical slicer locations include custom start/end G-code in PrusaSlicer, machine/profile custom G-code in OrcaSlicer, machine start/end fields in Bambu Studio, and Machine Settings in Cura. Exact menu names vary by version and profile; the exported G-code is authoritative.
 
 ## `serie.csv` format
 
-The file name must be exactly `serie.csv`:
+The repository includes an example at [`examples/serie.csv`](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/blob/main/examples/serie.csv). The file name loaded by the application must be exactly `serie.csv` and must be in the selected folder.
+
+Required layout:
 
 ```csv
 Cycles,7
@@ -121,21 +158,21 @@ Rank,Filename,Occurrences
 3,PART_3.gcode,6
 ```
 
-The parser:
+The parser requires:
 
-- expects `Cycles` and the cycle count in row 1;
-- expects `Rank,Filename,Occurrences` in row 2;
-- accepts a UTF-8 BOM and ignores completely empty rows;
-- requires cycles and ranks to be integers of at least `1`;
-- requires occurrences to be an integer of at least `0`;
-- rejects duplicate ranks and sorts entries by rank;
-- requires referenced filenames to match valid files in the selected folder.
+- row 1 to start with `Cycles` (case-insensitive), with an integer of at least `1` in column 2;
+- row 2's first three columns to be `Rank,Filename,Occurrences` (case-insensitive; surrounding whitespace is ignored);
+- each non-empty data row to have at least three columns;
+- a non-empty filename, an integer rank of at least `1`, and a non-negative integer occurrence count;
+- unique rank values.
 
-The interface limits direct occurrence editing to `0–999`; the CSV parser accepts any non-negative integer. When the interface saves the file, it writes the first row as `Cycles,<value>,` with a trailing empty column; this is accepted by the parser.
+It accepts a UTF-8 BOM, ignores completely empty rows, sorts rows by rank, and ignores columns after the first three. Filenames are matched by exact filename against valid files in the selected folder. Missing names and tag-invalid names are reported. Files not listed in a usable CSV row remain available in the table with `0` occurrences. A malformed CSV is reported and the application can continue with the valid files it found.
 
-## Transition and printer safety
+The GUI's inline occurrence editor is limited to `0`–`999`; the CSV parser itself accepts any non-negative integer. **Save series** writes UTF-8 with a BOM and a first row that includes a trailing empty field (`Cycles,7,`), which the parser accepts.
 
-The default transition in `settings.json` is an example, not a universal, ready-to-run ejection routine:
+## Transition G-code and machine safety
+
+The transition is editable in **Settings** and persisted under the `transition_gcode` key in `settings.json`. The supplied default is:
 
 ```gcode
 ; --- BELT TRANSITION ---
@@ -148,108 +185,70 @@ G28
 ; --- END BELT TRANSITION ---
 ```
 
-The name `convoyeur`, distances, speeds, endstops, axes, temperatures, and positions depend on the firmware, electronics, and mechanics. The application inserts the configured block as-is after every Body and does not semantically validate it or look for a separate ejection file.
+![Inter-part transition settings](docs/images/inter-part-transition-settings.png)
 
-Before production, test the transition without a part where possible, with the nozzle clear, at low speed, and with an emergency stop within reach. Verify travel limits, endstops, collision risks, cables, clips, the probe, bed temperature, nozzle temperature, and the actual part position.
+*The inter-part transition is editable and persistent; it must be adapted to the target printer and firmware.*
 
-### Firmware-specific checks
+This block is an example, not a universal or machine-ready ejection routine. `MANUAL_STEPPER`, the `convoyeur` name, distances, speeds, endstops, axes, positions, and temperature behavior depend on the firmware, electronics, mechanics, and configuration. The application inserts the current text as-is after every body and does not semantically validate G-code.
 
-- **Klipper:** define and calibrate the `manual_stepper` or a dedicated macro such as `EJECT_PART` in `printer.cfg` before calling it.
-- **Marlin:** use only a configured and documented auxiliary axis, macro, extruder, or output. Do not assume that `MANUAL_STEPPER` exists.
-- **RepRapFirmware/Duet:** define the additional axis, driver, steps/mm, direction, limits, and endstops in `config.g`, then call a validated macro.
-- **Gantry push-off:** calibrate the lift, XY sweep, and any cooling or reheating waits independently.
+Before a production series:
 
-### Motion and extrusion state
+- test the transition without a part where possible, with the nozzle clear, at reduced speed, and with an emergency stop accessible;
+- verify the belt or pusher direction, travel distance, speed, endstops, limits, pinch points, cables, clips, probe, nozzle, and actual part position;
+- ensure the transition restores the positioning and extrusion state expected by the next body;
+- check `G90`/`G91`, `M82`/`M83`, and `G92 E0` behavior against the slicer's output;
+- inspect heating, cooling, waits, and the final transition before the footer;
+- do not assume a Klipper command works on Marlin or RepRapFirmware/Duet. Configure and test firmware-specific macros or axes separately;
+- avoid `M84` or `M18` in a transition unless a documented machine-specific procedure explicitly requires it, because disabling motors can lose position.
 
-The transition must leave the machine in the state expected by the next source file:
+G-code is executable machine instruction, not harmless document data. Treat source G-code, `serie.csv`, transition settings, and downloaded binaries as untrusted until reviewed. The software does not check for collisions, unsafe temperatures, firmware compatibility, kinematics, travel limits, pin assignments, or physical safety.
 
-- `G90` is absolute positioning; `G91` is relative positioning;
-- `M82` is absolute extrusion; `M83` is relative extrusion;
-- `G92 E0` resets the extruder's logical position without extruding.
+## Validation, errors, and limitations
 
-Do not blindly add `M82` or `M83`; match the slicer's assumptions. A transition that leaves `G91` active can offset every subsequent coordinate. In absolute extrusion mode, inconsistent `E` values can cause unexpected extrusion or retraction. Avoid `M84` or `M18` in the transition unless your machine-specific procedure explicitly requires it: disabling motors can cause lost steps and loss of reference.
+![G-code validation report](docs/images/gcode-validation-report.png)
 
-The software validates marker structure and the file plan only. It does not validate firmware commands, kinematics, temperatures, travel limits, or physical safety.
+*Files with invalid body markers are reported and excluded from the sequence.*
 
-## Security and operational precautions
+The validation report can contain these code-defined conditions:
 
-G-code is executable machine instruction, not harmless document data. Treat source files, `serie.csv`, transition settings, and downloaded binaries as untrusted until reviewed.
+- `BODYSTART and BODYEND tags missing`;
+- `BODYSTART tag missing` or `BODYEND tag missing`;
+- `BODYSTART tag duplicated` or `BODYEND tag duplicated`;
+- `tag order reversed (BODYEND before BODYSTART)`;
+- `empty body between BODYSTART and BODYEND`;
+- a file read failure;
+- a malformed `serie.csv`;
+- a CSV filename that is missing or tag-invalid.
 
-- Download releases only from the official [repository](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer) and [Releases page](https://github.com/Celeautech-Lab/Series-3D-printing-sequencer/releases).
-- Review the Header, every Body, the transition, and the final Footer before sending output to a printer.
-- Confirm that the transition does not exceed axis limits, trigger an unexpected endstop, disable required motors, or move through a pinch or collision zone.
-- Run a dry test or single-part test before a long series, and keep the emergency stop accessible.
-- Do not rely on marker validation as a safety check: a structurally valid file can still contain unsafe G-code.
-- Keep backups of original G-code and printer configuration files. Generate output into a separate path when testing.
+Invalid G-code files are excluded from the table. A folder must contain at least one supported G-code file to be accepted. Generation then refuses or reports an error when no valid file is available, cycles are invalid, or all occurrences are zero. Composition can still fail if a file cannot be read or split at generation time; inspect the displayed error and the source files.
 
-## Launch from source
+The validator is deliberately limited: it checks readability and marker structure only. It does not parse or simulate G-code. It does not prove that bodies share compatible coordinates, temperatures, tool state, extrusion mode, homing assumptions, or firmware syntax. Review the complete generated file—header, every body, every transition, the final `; BODYEND`, and footer—before machine use.
 
-The source entry point is `main.py` in the application source directory. In the repository layout used by the release workflow, run from the repository root:
+## Build from source (optional)
 
-```bash
-git clone https://github.com/Celeautech-Lab/Series-3D-printing-sequencer.git
-cd Series-3D-printing-sequencer
-python src/main.py
-```
-
-The application uses Python's standard library, including Tkinter. On Debian/Ubuntu, install Tkinter if it is not already available:
-
-```bash
-sudo apt install python3-tk
-```
-
-If you are working with a source export in which `main.py`, `gui.py`, and the other application modules are directly in the current directory rather than under `src/`, run:
-
-```bash
-python main.py
-```
-
-The GUI entry point handles the source-tree import fallback used by the application. No `requirements.txt` file is required for the source run; PyInstaller is needed only for the optional executable build below.
-
-## Troubleshooting
-
-### No G-code files found
-
-Confirm that the selected folder contains files ending in `.gcode`, `.gco`, or `.g`. The scan is not recursive.
-
-### A file is excluded by validation
-
-Open the file as text and check for exactly one `; BODYSTART`, exactly one `; BODYEND`, the correct order, and at least one line between them. Remove extra marker occurrences and avoid adding text after the marker on the same line.
-
-### `serie.csv` is not loaded
-
-Confirm the exact filename and the two header rows. Check that every referenced filename exists in the selected folder and passes marker validation. Read the **Validation report** for the specific CSV error.
-
-### Generation errors
-
-- `No file selected`: no valid source file is loaded.
-- `Invalid cycles value`: the cycle field is not an integer.
-- `No parts selected (all occurrences are 0)`: every occurrence count is zero.
-- `G-code composition failed:`: a source file could not be split or composed.
-- `Save failed:`: the output file could not be written.
-- `Series save failed:`: `serie.csv` could not be written.
-
-### The executable does not start
-
-Check that you downloaded the asset for the correct operating system and architecture. On Linux, add execute permission. On macOS, extract the archive and review the system's application security prompt. If launching from source, verify that Tkinter is installed and that you are using the intended Python interpreter.
-
-## Optional: build an executable
-
-The repository includes `build_exe.py` for a local PyInstaller build. This is optional; downloading a release is the recommended path. Run it from the repository root:
+Most users should use a published release or run from source. For an optional local build, the repository provides `build_exe.py` and expects the `src/` layout. Install PyInstaller first:
 
 ```bash
 python -m pip install pyinstaller
 python build_exe.py --asset PrintSeriesGenerator-Linux-x64
 ```
 
-If `--asset` is omitted, the script chooses a platform-specific default. The build configuration uses:
+The script selects the platform-specific mode and includes `src/settings.json`:
 
-- `PrintSeriesGenerator-Windows-x64.exe` on Windows;
-- `PrintSeriesGenerator-Linux-x64` on Linux;
-- `PrintSeriesGenerator-macOS-AppleSilicon` for macOS, packaged as `PrintSeriesGenerator-macOS-AppleSilicon.tar.gz`.
+- Windows: one executable, normally named `PrintSeriesGenerator-Windows-x64.exe`;
+- Linux: one executable, normally named `PrintSeriesGenerator-Linux-x64`;
+- macOS: an `.app` bundle archived as `PrintSeriesGenerator-macOS-AppleSilicon.tar.gz`.
 
-The script includes `src/settings.json`, uses a single executable on Windows/Linux, and creates a macOS application bundle archive. It removes prior `build/` and `dist/` directories before building and removes the intermediate `build/` directory afterward. Build on the target operating system; PyInstaller is not a cross-compiler.
+Build on the target operating system; this is not a cross-compilation procedure. The script removes previous `build/` and `dist/` directories before building. The workflow also documents Python 3.11 and a Linux Tkinter installation, but a local build still depends on the host's Python, Tkinter, PyInstaller, and platform environment. A build completing is not a hardware-safety or cross-platform compatibility test.
 
 ## License
 
-This project is distributed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. Personal, hobby, or educational use and commercial use are governed by the terms and restrictions of that license. Read the repository's `LICENSE` file before using, modifying, or redistributing the software. For commercial licensing, integration, or partnership requests, contact **Antoine Navarro EI — [celeautech.contact@gmail.com](mailto:celeautech.contact@gmail.com)**.
+This project is distributed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. The repository's `LICENSE` file contains the governing terms and the required notice:
+
+```text
+Required Notice: Copyright (c) 2026 Antoine Navarro EI
+```
+
+The license permits noncommercial purposes as defined in its text. Commercial use, distribution, resale, or integration into a commercial product or service requires an explicit written agreement from the author. Read the complete [`LICENSE`](LICENSE) before using, modifying, or distributing the project.
+
+For commercial licensing or partnership inquiries, the license names **Antoine Navarro EI** at [celeautech.contact@gmail.com](mailto:celeautech.contact@gmail.com).
